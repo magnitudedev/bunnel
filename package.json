@@ -1,0 +1,33 @@
+{
+  "name": "bunnel",
+  "version": "0.1.0",
+  "description": "A simple HTTP tunnel client for local development",
+  "type": "module",
+  "main": "dist/client/index.js",
+  "types": "dist/client/index.d.ts",
+  "files": [
+    "dist/client",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start:server": "bun src/server/tunnel_server.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "tunnel",
+    "http",
+    "websocket",
+    "development",
+    "local",
+    "proxy"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
