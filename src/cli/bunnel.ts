@@ -62,7 +62,7 @@ program
     console.log(`🚀 Starting tunnel server on port ${port}...`);
     
     // Import server dynamically since it's not included in npm package
-    const serverPath = new URL('../server/tunnel_server.ts', import.meta.url);
+    const serverPath = new URL('../server/server.ts', import.meta.url);
     
     // Set environment variable for port
     process.env.PORT = port;
