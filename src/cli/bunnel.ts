@@ -9,6 +9,9 @@ interface ClientOptions {
 
 interface ServerOptions {
   port: string;
+  cert?: string;
+  key?: string;
+  ca?: string[];
 }
 
 const program = new Command();
@@ -22,14 +25,16 @@ program
   .command('client')
   .description('Start a tunnel client')
   .option('-l, --local <url>', 'local server URL', 'http://localhost:8000')
-  .option('-t, --tunnel <url>', 'tunnel server URL', 'ws://localhost:3000/tunnel')
+  .option('-t, --tunnel <url>', 'tunnel server URL', 'ws://localhost:3000')
   .action((options: ClientOptions) => {
     const tunnel = new TunnelClient({
       localServerUrl: options.local,
       tunnelServerUrl: options.tunnel,
       onConnected: (subdomain) => {
         console.log(`✨ Tunnel established!`);
-        console.log(`🌍 Your local server is now available at: ${subdomain}.localhost:3000`);
+        const protocol = options.tunnel.startsWith('wss://') ? 'https://' : 'http://';
+        const port = new URL(options.tunnel).port || (protocol === 'https://' ? '443' : '80');
+        console.log(`🌍 Your local server is now available at: ${protocol}${subdomain}.localhost:${port}`);
       },
       onClosed: () => {
         console.log('🔌 Tunnel closed');
@@ -56,16 +61,29 @@ program
   .command('server')
   .description('Start a tunnel server')
   .option('-p, --port <number>', 'port to listen on', '3000')
+  .option('--cert <path>', 'path to SSL certificate file')
+  .option('--key <path>', 'path to SSL private key file')
+  .option('--ca <paths...>', 'paths to CA certificate files')
   .action(async (options: ServerOptions) => {
-    const { port } = options;
+    const { port, cert, key, ca } = options;
     
-    console.log(`🚀 Starting tunnel server on port ${port}...`);
+    // Validate SSL configuration
+    if ((cert && !key) || (!cert && key)) {
+      console.error('❌ Both --cert and --key must be provided for SSL');
+      process.exit(1);
+    }
+
+    // Set environment variables
+    process.env.PORT = port;
+    if (cert) process.env.BUNNEL_CERT_PATH = cert;
+    if (key) process.env.BUNNEL_KEY_PATH = key;
+    if (ca) process.env.BUNNEL_CA_PATHS = ca.join(',');
+    
+    const protocol = cert ? 'wss' : 'ws';
+    console.log(`🚀 Starting tunnel server on ${protocol}://localhost:${port}...`);
     
     // Import server dynamically since it's not included in npm package
     const serverPath = new URL('../server/server.ts', import.meta.url);
-    
-    // Set environment variable for port
-    process.env.PORT = port;
     
     try {
       await import(serverPath.toString());

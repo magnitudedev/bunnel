@@ -9,7 +9,7 @@ export interface TunnelClientOptions {
 
     /**
      * The URL of the tunnel server
-     * @default "ws://localhost:3000/tunnel"
+     * @default "ws://localhost:3000"
      */
     tunnelServerUrl?: string;
 
@@ -38,7 +38,7 @@ export class TunnelClient {
     constructor(options: TunnelClientOptions = {}) {
         this.options = options;
         this.localServerUrl = options.localServerUrl || "http://localhost:8000";
-        this.tunnelServerUrl = options.tunnelServerUrl || "ws://localhost:3000/tunnel";
+        this.tunnelServerUrl = options.tunnelServerUrl || "ws://localhost:3000";
     }
 
     /**
@@ -61,7 +61,9 @@ export class TunnelClient {
 
             if (data.type === "connected") {
                 const message = data as ConnectedMessage;
-                console.log(`Tunnel established at: ${message.subdomain}.localhost:3000`);
+                const protocol = this.tunnelServerUrl.startsWith("wss://") ? "https://" : "http://";
+                const port = new URL(this.tunnelServerUrl).port || (protocol === "https://" ? "443" : "80");
+                console.log(`Tunnel established at: ${protocol}${message.subdomain}.localhost:${port}`);
                 this.options.onConnected?.(message.subdomain);
                 return;
             }

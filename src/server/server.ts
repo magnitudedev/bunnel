@@ -37,29 +37,41 @@ interface TunnelServerOptions {
   port?: number;
   idleTimeout?: number;  // Time in ms before cleaning up idle tunnels
   reconnectGrace?: number;  // Time in ms to allow for reconnection
+  tls?: {
+    cert: string;    // Path to certificate file
+    key: string;     // Path to private key file
+    ca?: string[];   // Optional CA certificates
+  };
 }
 
 const DEFAULT_OPTIONS = {
   port: 3000,
   idleTimeout: 5 * 60 * 1000,  // 5 minutes
-  reconnectGrace: 1000  // 1 second
+  reconnectGrace: 1000,  // 1 second
+  tls: undefined
 };
 
 class TunnelServer {
   private tunnels: Map<string, TunnelInfo>;
   private pendingRequests: Map<string, (response: Response) => void>;
-  private options: Required<TunnelServerOptions>;
+  private options: Required<Omit<TunnelServerOptions, 'tls'>> & Pick<TunnelServerOptions, 'tls'>;
   private server?: Server;
   private monitorInterval?: number;
 
   constructor(options: TunnelServerOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { 
+      ...DEFAULT_OPTIONS, 
+      ...options,
+      port: options.port ?? DEFAULT_OPTIONS.port,
+      idleTimeout: options.idleTimeout ?? DEFAULT_OPTIONS.idleTimeout,
+      reconnectGrace: options.reconnectGrace ?? DEFAULT_OPTIONS.reconnectGrace
+    };
     this.tunnels = new Map();
     this.pendingRequests = new Map();
   }
 
   public start(): void {
-    this.server = Bun.serve({
+    const serverConfig: any = {
       port: this.options.port,
       fetch: this.handleRequest.bind(this),
       websocket: {
@@ -67,14 +79,34 @@ class TunnelServer {
         message: this.handleWebSocketMessage.bind(this),
         close: this.handleWebSocketClose.bind(this)
       }
-    });
+    };
+
+    // Add TLS configuration if provided
+    if (this.options.tls) {
+      try {
+        const { cert, key, ca } = this.options.tls;
+        serverConfig.tls = {
+          cert: Bun.file(cert),
+          key: Bun.file(key),
+        };
+        if (ca) {
+          serverConfig.tls.ca = ca.map(caPath => Bun.file(caPath));
+        }
+      } catch (err) {
+        console.error('Failed to load TLS certificates:', err);
+        throw new Error('Failed to load TLS certificates. Please check your certificate paths.');
+      }
+    }
+
+    this.server = Bun.serve(serverConfig);
 
     // Start tunnel monitoring
     this.monitorInterval = setInterval(() => {
       this.monitorTunnels();
     }, 60000) as unknown as number;
 
-    console.log(`Tunnel server started on port ${this.options.port}`);
+    const protocol = this.options.tls ? 'wss' : 'ws';
+    console.log(`Tunnel server started on ${protocol}://localhost:${this.options.port}`);
   }
 
   public stop(): void {
@@ -112,11 +144,10 @@ class TunnelServer {
       // Check if this is a WebSocket upgrade request
       const upgradeHeader = req.headers.get('upgrade');
       if (upgradeHeader?.toLowerCase() === 'websocket') {
-        console.log(`WebSocket upgrade request for: ${url.pathname}`);
         try {
-          // Control connection from bunnel CLI at /tunnel path
-          if (url.pathname === '/tunnel') {
-            console.log('Processing control connection request');
+          if (parts.length === 1 && parts[0] === 'localhost') {
+            // New tunnel connection at localhost:<port>
+            console.log('Processing new tunnel connection');
             const subdomain = this.generateSubdomain();
             const success = server.upgrade(req, {
               data: { subdomain, isControl: true }
@@ -124,8 +155,8 @@ class TunnelServer {
             return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
           }
 
-          // All other WebSocket connections are treated as client connections to be tunneled
           if (parts.length === 2 && parts[1] === 'localhost') {
+            // Client connection at <subdomain>.localhost:<port>
             const subdomain = parts[0];
             console.log(`Processing client connection for subdomain: ${subdomain}`);
             
@@ -135,7 +166,6 @@ class TunnelServer {
               return new Response('Tunnel not found', { status: 404 });
             }
             
-            // Upgrade the connection with subdomain data
             const success = server.upgrade(req, {
               data: { subdomain, isControl: false }
             });
@@ -391,9 +421,24 @@ class TunnelServer {
 }
 
 // Create and start the tunnel server
-const server = new TunnelServer({
+const serverOptions: TunnelServerOptions = {
   port: process.env.PORT ? parseInt(process.env.PORT) : undefined
-});
+};
+
+// Configure TLS if certificate and key are provided
+if (process.env.BUNNEL_CERT_PATH && process.env.BUNNEL_KEY_PATH) {
+  serverOptions.tls = {
+    cert: process.env.BUNNEL_CERT_PATH,
+    key: process.env.BUNNEL_KEY_PATH,
+  };
+
+  // Add CA certificates if provided
+  if (process.env.BUNNEL_CA_PATHS) {
+    serverOptions.tls.ca = process.env.BUNNEL_CA_PATHS.split(',');
+  }
+}
+
+const server = new TunnelServer(serverOptions);
 server.start();
 
 export default TunnelServer;
