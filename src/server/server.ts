@@ -28,27 +28,39 @@ interface ConnectedMessage {
 interface TunnelInfo {
   controlSocket: ServerWebSocket<TunnelData>;
   clientSockets: Set<ServerWebSocket<TunnelData>>;
+  state: 'online' | 'offline';
+  graceTimeout?: number;  // Timer ID for reconnection window
+  lastActive: number;     // Timestamp for activity tracking
 }
 
 interface TunnelServerOptions {
   port?: number;
+  idleTimeout?: number;  // Time in ms before cleaning up idle tunnels
+  reconnectGrace?: number;  // Time in ms to allow for reconnection
 }
+
+const DEFAULT_OPTIONS = {
+  port: 3000,
+  idleTimeout: 5 * 60 * 1000,  // 5 minutes
+  reconnectGrace: 1000  // 1 second
+};
 
 class TunnelServer {
   private tunnels: Map<string, TunnelInfo>;
   private pendingRequests: Map<string, (response: Response) => void>;
-  private port: number;
+  private options: Required<TunnelServerOptions>;
   private server?: Server;
+  private monitorInterval?: number;
 
   constructor(options: TunnelServerOptions = {}) {
+    this.options = { ...DEFAULT_OPTIONS, ...options };
     this.tunnels = new Map();
     this.pendingRequests = new Map();
-    this.port = options.port || 3000;
   }
 
   public start(): void {
     this.server = Bun.serve({
-      port: this.port,
+      port: this.options.port,
       fetch: this.handleRequest.bind(this),
       websocket: {
         open: this.handleWebSocketOpen.bind(this),
@@ -56,13 +68,39 @@ class TunnelServer {
         close: this.handleWebSocketClose.bind(this)
       }
     });
-    console.log(`Tunnel server started on port ${this.port}`);
+
+    // Start tunnel monitoring
+    this.monitorInterval = setInterval(() => {
+      this.monitorTunnels();
+    }, 60000) as unknown as number;
+
+    console.log(`Tunnel server started on port ${this.options.port}`);
   }
 
   public stop(): void {
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+    }
     this.server?.stop();
     this.tunnels.clear();
     this.pendingRequests.clear();
+  }
+
+  private monitorTunnels(): void {
+    const now = Date.now();
+    for (const [subdomain, tunnel] of this.tunnels) {
+      // Clean up tunnels that have been idle too long
+      if (now - tunnel.lastActive > this.options.idleTimeout) {
+        console.log(`Cleaning up idle tunnel: ${subdomain}`);
+        this.cleanupTunnel(subdomain);
+        continue;
+      }
+
+      // Update activity timestamp for active tunnels
+      if (tunnel.state === 'online') {
+        tunnel.lastActive = now;
+      }
+    }
   }
 
   private async handleRequest(req: Request, server: Server): Promise<Response> {
@@ -181,12 +219,26 @@ class TunnelServer {
 
     // Handle control connection (from bunnel CLI)
     if (ws.data.isControl) {
-      const tunnelInfo: TunnelInfo = {
-        controlSocket: ws,
-        clientSockets: new Set()
-      };
-      this.tunnels.set(subdomain, tunnelInfo);
-      console.log(`Control connection opened for subdomain: ${subdomain}`);
+      const existingTunnel = this.tunnels.get(subdomain);
+      
+      if (existingTunnel && existingTunnel.state === 'offline') {
+        // Reconnection during grace period
+        clearTimeout(existingTunnel.graceTimeout);
+        existingTunnel.controlSocket = ws;
+        existingTunnel.state = 'online';
+        existingTunnel.lastActive = Date.now();
+        console.log(`Tunnel ${subdomain} reconnected`);
+      } else {
+        // New tunnel connection
+        const tunnelInfo: TunnelInfo = {
+          controlSocket: ws,
+          clientSockets: new Set(),
+          state: 'online',
+          lastActive: Date.now()
+        };
+        this.tunnels.set(subdomain, tunnelInfo);
+        console.log(`Control connection opened for subdomain: ${subdomain}`);
+      }
       
       try {
         const message: ConnectedMessage = { type: 'connected', subdomain };
@@ -249,11 +301,17 @@ class TunnelServer {
     if (!tunnel) return;
 
     if (ws === tunnel.controlSocket) {
-      // Control socket closed - cleanup entire tunnel
-      this.cleanupTunnel(subdomain);
+      // Control socket disconnected - start grace period
+      tunnel.state = 'offline';
+      tunnel.graceTimeout = setTimeout(() => {
+        console.log(`Grace period expired for tunnel: ${subdomain}`);
+        this.cleanupTunnel(subdomain);
+      }, this.options.reconnectGrace) as unknown as number;
+      console.log(`Control connection lost for ${subdomain}, grace period started`);
     } else {
       // Client socket closed - just remove from set
       tunnel.clientSockets.delete(ws);
+      tunnel.lastActive = Date.now(); // Update activity timestamp
       console.log(`Client connection closed for subdomain: ${subdomain}`);
     }
   }
@@ -261,6 +319,11 @@ class TunnelServer {
   private cleanupTunnel(subdomain: string): void {
     const tunnel = this.tunnels.get(subdomain);
     if (!tunnel) return;
+
+    // Clear any existing grace timeout
+    if (tunnel.graceTimeout) {
+      clearTimeout(tunnel.graceTimeout);
+    }
 
     // Close all client sockets
     for (const clientSocket of tunnel.clientSockets) {
@@ -271,9 +334,11 @@ class TunnelServer {
       }
     }
 
-    // Close control socket
+    // Close control socket if it's still open
     try {
-      tunnel.controlSocket.close();
+      if (tunnel.controlSocket.readyState !== WebSocket.CLOSED) {
+        tunnel.controlSocket.close();
+      }
     } catch (err) {
       // Ignore errors during close
     }
