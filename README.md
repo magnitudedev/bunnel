@@ -5,12 +5,48 @@ A simple HTTP tunnel client for local development. Bunnel allows you to expose y
 ## Installation
 
 ```bash
-npm install bunnel
+npm install -g bunnel
 ```
 
-## Usage
+## CLI Usage
 
-### Client (npm package)
+Bunnel provides a command-line interface for both the client and server components.
+
+### Starting the Server
+
+```bash
+# Start the tunnel server on default port 3000
+bunnel server
+
+# Start the tunnel server on a custom port
+bunnel server --port 8080
+```
+
+### Starting the Client
+
+```bash
+# Connect to a local server (default: http://localhost:8000)
+bunnel client
+
+# Connect to a local server on a different port
+bunnel client --local http://localhost:3000
+
+# Connect to a remote tunnel server
+bunnel client --tunnel ws://your-tunnel-server.com/tunnel
+```
+
+### CLI Options
+
+#### Server Command
+- `-p, --port <number>` - Port to listen on (default: 3000)
+
+#### Client Command
+- `-l, --local <url>` - Local server URL (default: http://localhost:8000)
+- `-t, --tunnel <url>` - Tunnel server URL (default: ws://localhost:3000/tunnel)
+
+## Programmatic Usage
+
+You can also use Bunnel programmatically in your Node.js applications:
 
 ```typescript
 import { TunnelClient } from 'bunnel';
@@ -41,31 +77,6 @@ tunnel.connect();
 tunnel.disconnect();
 ```
 
-### Server (not included in npm package)
-
-The server component is not included in the npm package as it's meant to be deployed separately. You can find the server code in the repository under `src/server/`.
-
-To run the server locally for development:
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the server:
-   ```bash
-   npm run start:server
-   ```
-
-The server will start on port 3000 by default.
-
-## How it Works
-
-1. The tunnel server generates a random subdomain for each client connection
-2. When a client connects via WebSocket, they receive their assigned subdomain
-3. HTTP requests to `[subdomain].localhost:3000` are forwarded through the WebSocket to the client
-4. The client forwards these requests to the local server and sends responses back through the tunnel
-
 ## API
 
 ### TunnelClient
@@ -84,6 +95,13 @@ The server will start on port 3000 by default.
 - `disconnect(): void` - Disconnect from the tunnel server
 - `isConnected(): boolean` - Check if connected to the tunnel server
 
+## How it Works
+
+1. The tunnel server generates a random subdomain for each client connection
+2. When a client connects via WebSocket, they receive their assigned subdomain
+3. HTTP requests to `[subdomain].localhost:3000` are forwarded through the WebSocket to the client
+4. The client forwards these requests to the local server and sends responses back through the tunnel
+
 ## Development
 
 The project is structured to separate the client library (published to npm) from the server code:
@@ -93,8 +111,9 @@ src/
   ├── client/         # npm package code
   │   ├── index.ts   # Main client library
   │   └── types.ts   # Shared types
-  │
-  └── server/         # Server code (not published)
+  ├── cli/           # Command-line interface
+  │   └── bunnel.ts  # CLI implementation
+  └── server/        # Server code (not published)
       └── tunnel_server.ts
 ```
 
@@ -104,7 +123,7 @@ src/
 npm run build
 ```
 
-This will compile the client library to the `dist/` directory.
+This will compile the client library and CLI to the `dist/` directory.
 
 ## License
 

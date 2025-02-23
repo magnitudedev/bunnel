@@ -27,6 +27,9 @@ interface ConnectedMessage {
 const tunnels = new Map<string, ServerWebSocket<TunnelData>>();
 const pendingRequests = new Map<string, (response: Response) => void>();
 
+// Get port from environment variable or default to 3000
+const PORT = parseInt(process.env.PORT || "3000", 10);
+
 // Generate a random subdomain
 function generateSubdomain(): string {
   return Math.random().toString(36).substring(2, 8);
@@ -41,10 +44,10 @@ function headersToObject(headers: Headers): Record<string, string> {
   return obj;
 }
 
-console.log("Starting tunnel server on port 3000...");
+console.log(`Starting tunnel server on port ${PORT}...`);
 
 Bun.serve({
-  port: 3000,
+  port: PORT,
   async fetch(req: Request, server: Server): Promise<Response> {
     const url = new URL(req.url);
     
