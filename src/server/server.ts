@@ -35,7 +35,7 @@ interface TunnelInfo {
   lastActive: number;     // Timestamp for activity tracking
 }
 
-interface TunnelServerOptions {
+export interface TunnelServerOptions {
   port?: number;
   idleTimeout?: number;  // Time in ms before cleaning up idle tunnels
   reconnectGrace?: number;  // Time in ms to allow for reconnection
@@ -451,26 +451,5 @@ class TunnelServer {
     return obj;
   }
 }
-
-// Create and start the tunnel server
-const serverOptions: TunnelServerOptions = {
-  port: process.env.PORT ? parseInt(process.env.PORT) : undefined
-};
-
-// Configure TLS if certificate and key are provided
-if (process.env.BUNNEL_CERT_PATH && process.env.BUNNEL_KEY_PATH) {
-  serverOptions.tls = {
-    cert: process.env.BUNNEL_CERT_PATH,
-    key: process.env.BUNNEL_KEY_PATH,
-  };
-
-  // Add CA certificates if provided
-  if (process.env.BUNNEL_CA_PATHS) {
-    serverOptions.tls.ca = process.env.BUNNEL_CA_PATHS.split(',');
-  }
-}
-
-const server = new TunnelServer(serverOptions);
-server.start();
 
 export default TunnelServer;

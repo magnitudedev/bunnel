@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { TunnelClient } from '../client/index.js';
+import type { TunnelServerOptions } from '../server/server.js';
 
 interface ClientOptions {
   local: string;
@@ -73,20 +74,34 @@ program
       process.exit(1);
     }
 
-    // Set environment variables
-    process.env.PORT = port;
-    if (cert) process.env.BUNNEL_CERT_PATH = cert;
-    if (key) process.env.BUNNEL_KEY_PATH = key;
-    if (ca) process.env.BUNNEL_CA_PATHS = ca.join(',');
-    
+    const serverOptions: TunnelServerOptions = {
+      port: parseInt(port),
+    };
+
+    // Add TLS configuration if SSL certificates are provided
+    if (cert && key) {
+      serverOptions.tls = {
+        cert,
+        key,
+        ca
+      };
+    }
+
     const protocol = cert ? 'wss' : 'ws';
     console.log(`🚀 Starting tunnel server on ${protocol}://localhost:${port}...`);
-    
-    // Import server dynamically since it's not included in npm package
-    const serverPath = new URL('../server/server.ts', import.meta.url);
-    
+
     try {
-      await import(serverPath.toString());
+      const { default: TunnelServer } = await import('../server/server.js');
+      const server = new TunnelServer(serverOptions);
+      
+      server.start();
+
+      // Handle graceful shutdown
+      process.on('SIGINT', () => {
+        console.log('\n🛑 Shutting down server...');
+        server.stop();
+        process.exit(0);
+      });
     } catch (error) {
       console.error('❌ Failed to start server:', error);
       process.exit(1);
