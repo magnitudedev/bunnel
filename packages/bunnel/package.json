@@ -1,0 +1,36 @@
+{
+  "name": "bunnel",
+  "version": "0.1.0",
+  "description": "A simple HTTP tunnel client for local development",
+  "type": "module",
+  "main": "dist/client/index.js",
+  "types": "dist/client/index.d.ts",
+  "bin": {
+    "bunnel": "dist/cli/bunnel.js"
+  },
+  "files": [
+    "dist/client",
+    "dist/cli",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "bunnel client",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "tunnel",
+    "http",
+    "websocket",
+    "development",
+    "local",
+    "proxy"
+  ],
+  "dependencies": {
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/commander": "^2.12.2",
+    "typescript": "^5.0.0"
+  }
+}
