@@ -62,9 +62,9 @@ export class TunnelClient {
 
             if (data.type === "connected") {
                 const message = data as ConnectedMessage;
-                const protocol = this.tunnelServerUrl.startsWith("wss://") ? "https://" : "http://";
-                const port = new URL(this.tunnelServerUrl).port || (protocol === "https://" ? "443" : "80");
-                console.log(`Tunnel established at: ${protocol}${message.subdomain}.localhost:${port}`);
+                const tunnelPort = new URL(this.tunnelServerUrl).port || "3000";
+                const httpPort = parseInt(tunnelPort) + 1;
+                console.log(`Tunnel established at: http://${message.subdomain}.localhost:${httpPort}`);
                 this.options.onConnected?.(message.subdomain);
                 return;
             }

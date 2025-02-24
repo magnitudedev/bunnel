@@ -1,5 +1,6 @@
 import type { Server, ServerWebSocket } from "bun";
 import selfsigned from 'selfsigned';
+import { LocalProxyServer } from "./proxy";
 
 interface TunnelData {
   subdomain: string;
@@ -57,6 +58,7 @@ class TunnelServer {
   private pendingRequests: Map<string, (response: Response) => void>;
   private options: Required<Omit<TunnelServerOptions, 'tls'>> & { tls: NonNullable<TunnelServerOptions['tls']> };
   private server?: Server;
+  private proxyServer?: Server;
   private monitorInterval?: number;
 
   private generateCertificates() {
@@ -124,6 +126,10 @@ class TunnelServer {
 
     this.server = Bun.serve(serverConfig);
 
+    // Start the HTTP proxy server
+    const proxy = new LocalProxyServer(this.options.port);
+    this.proxyServer = proxy.start();
+
     // Start tunnel monitoring
     this.monitorInterval = setInterval(() => {
       this.monitorTunnels();
@@ -131,6 +137,7 @@ class TunnelServer {
 
     const protocol = this.options.tls ? 'wss' : 'ws';
     console.log(`Tunnel server started on ${protocol}://localhost:${this.options.port}`);
+    console.log(`Local HTTP access available on http://localhost:${this.options.port + 1}`);
   }
 
   public stop(): void {
@@ -138,6 +145,7 @@ class TunnelServer {
       clearInterval(this.monitorInterval);
     }
     this.server?.stop();
+    this.proxyServer?.stop();
     this.tunnels.clear();
     this.pendingRequests.clear();
   }
