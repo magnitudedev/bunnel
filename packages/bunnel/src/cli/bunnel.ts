@@ -10,10 +10,9 @@ interface ClientOptions {
 const program = new Command();
 program
     .name('bunnel')
-    .command('client')
     .description('Bunnel client')
-    .option('-l, --local <url>', 'local server URL')
-    .option('-t, --tunnel <url>', 'tunnel server URL')
+    .requiredOption('-l, --local <url>', 'local server URL, for example http://localhost:3000')
+    .requiredOption('-t, --tunnel <url>', 'tunnel server URL, for example, wss://myserver.com:4444')
     .action(async (options: ClientOptions) => {
         const localServerUrl = options.local;
 

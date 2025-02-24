@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@types/commander": "^2.12.2",
+    "@types/node": "^22.13.5",
     "esbuild": "^0.20.1",
     "typescript": "^5.0.0"
   }
