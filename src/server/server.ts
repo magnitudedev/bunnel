@@ -1,4 +1,5 @@
 import type { Server, ServerWebSocket } from "bun";
+import selfsigned from 'selfsigned';
 
 interface TunnelData {
   subdomain: string;
@@ -54,17 +55,40 @@ const DEFAULT_OPTIONS = {
 class TunnelServer {
   private tunnels: Map<string, TunnelInfo>;
   private pendingRequests: Map<string, (response: Response) => void>;
-  private options: Required<Omit<TunnelServerOptions, 'tls'>> & Pick<TunnelServerOptions, 'tls'>;
+  private options: Required<Omit<TunnelServerOptions, 'tls'>> & { tls: NonNullable<TunnelServerOptions['tls']> };
   private server?: Server;
   private monitorInterval?: number;
 
+  private generateCertificates() {
+    const attrs = [{ name: 'commonName', value: 'localhost' }];
+    const pems = selfsigned.generate(attrs, {
+      days: 365,
+      keySize: 2048,
+      algorithm: 'sha256'
+    });
+    return {
+      cert: pems.cert,
+      key: pems.private
+    };
+  }
+
   constructor(options: TunnelServerOptions = {}) {
+    // Generate self-signed certificates if not provided
+    if (!options.tls) {
+      const certs = this.generateCertificates();
+      options.tls = {
+        cert: certs.cert,
+        key: certs.key
+      };
+    }
+
     this.options = { 
       ...DEFAULT_OPTIONS, 
       ...options,
       port: options.port ?? DEFAULT_OPTIONS.port,
       idleTimeout: options.idleTimeout ?? DEFAULT_OPTIONS.idleTimeout,
-      reconnectGrace: options.reconnectGrace ?? DEFAULT_OPTIONS.reconnectGrace
+      reconnectGrace: options.reconnectGrace ?? DEFAULT_OPTIONS.reconnectGrace,
+      tls: options.tls as NonNullable<TunnelServerOptions['tls']>
     };
     this.tunnels = new Map();
     this.pendingRequests = new Map();
@@ -81,21 +105,21 @@ class TunnelServer {
       }
     };
 
-    // Add TLS configuration if provided
-    if (this.options.tls) {
-      try {
-        const { cert, key, ca } = this.options.tls;
-        serverConfig.tls = {
-          cert: Bun.file(cert),
-          key: Bun.file(key),
-        };
-        if (ca) {
-          serverConfig.tls.ca = ca.map(caPath => Bun.file(caPath));
-        }
-      } catch (err) {
-        console.error('Failed to load TLS certificates:', err);
-        throw new Error('Failed to load TLS certificates. Please check your certificate paths.');
+    // Add TLS configuration
+    try {
+      const { cert, key, ca } = this.options.tls;
+      // If cert/key are file paths, load them with Bun.file
+      // If they're certificate strings (from selfsigned), use them directly
+      serverConfig.tls = {
+        cert: cert.startsWith('-----BEGIN') ? cert : Bun.file(cert),
+        key: key.startsWith('-----BEGIN') ? key : Bun.file(key),
+      };
+      if (ca) {
+        serverConfig.tls.ca = ca.map(caPath => Bun.file(caPath));
       }
+    } catch (err) {
+      console.error('Failed to configure TLS:', err);
+      throw new Error('Failed to configure TLS. Please check your certificate configuration.');
     }
 
     this.server = Bun.serve(serverConfig);

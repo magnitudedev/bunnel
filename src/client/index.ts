@@ -9,7 +9,7 @@ export interface TunnelClientOptions {
 
     /**
      * The URL of the tunnel server
-     * @default "ws://localhost:3000"
+     * @default "wss://localhost:3000"
      */
     tunnelServerUrl?: string;
 
@@ -38,7 +38,7 @@ export class TunnelClient {
     constructor(options: TunnelClientOptions = {}) {
         this.options = options;
         this.localServerUrl = options.localServerUrl || "http://localhost:8000";
-        this.tunnelServerUrl = options.tunnelServerUrl || "ws://localhost:3000";
+        this.tunnelServerUrl = options.tunnelServerUrl || "wss://localhost:3000";
     }
 
     /**
@@ -50,6 +50,7 @@ export class TunnelClient {
         }
 
         console.log("Connecting to tunnel server...");
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         this.ws = new WebSocket(this.tunnelServerUrl);
 
         this.ws.onopen = () => {

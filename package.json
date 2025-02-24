@@ -28,12 +28,12 @@
     "proxy"
   ],
   "dependencies": {
-    "commander": "^11.1.0"
+    "commander": "^11.1.0",
+    "selfsigned": "^2.4.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/commander": "^2.12.2",
-    "@types/ws": "^8.5.10",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {

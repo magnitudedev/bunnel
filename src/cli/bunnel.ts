@@ -25,7 +25,7 @@ program
   .command('client')
   .description('Start a tunnel client')
   .option('-l, --local <url>', 'local server URL', 'http://localhost:8000')
-  .option('-t, --tunnel <url>', 'tunnel server URL', 'ws://localhost:3000')
+  .option('-t, --tunnel <url>', 'tunnel server URL', 'wss://localhost:3000')
   .action((options: ClientOptions) => {
     const tunnel = new TunnelClient({
       localServerUrl: options.local,
