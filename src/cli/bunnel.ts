@@ -17,7 +17,6 @@ interface ServerOptions {
 }
 
 const program = new Command();
-
 program
     .name('bunnel')
     .description('HTTP tunnel for local development')
@@ -29,34 +28,39 @@ program
     .option('-l, --local <url>', 'local server URL', 'http://localhost:8000')
     .option('-t, --tunnel <url>', 'tunnel server URL', 'wss://localhost:4444')
     .action(async (options: ClientOptions) => {
+        const localServerUrl = options.local;
+        //const proxyPort = options.proxy;
+
         const tunnel = new TunnelClient({
-            localServerUrl: options.local,
+            localServerUrl: localServerUrl,
             tunnelServerUrl: options.tunnel,
-            onConnected: (subdomain) => {
-                console.log(`✨ Tunnel established!`);
-                const protocol = options.tunnel.startsWith('wss://') ? 'https://' : 'http://';
-                const port = new URL(options.tunnel).port || (protocol === 'https://' ? '443' : '80');
-                console.log(`🌍 Your local server is now available at: ${protocol}${subdomain}.localhost:${port}`);
-            },
             onClosed: () => {
                 console.log('🔌 Tunnel closed');
                 process.exit(0);
-            },
-            onError: (error) => {
-                console.error('❌ Tunnel error:', error);
             }
         });
 
         console.log(`📡 Connecting to tunnel server at ${options.tunnel}...`);
         console.log(`🔄 Will forward requests to ${options.local}`);
 
-        await tunnel.connect();
+        try {
+            const { subdomain, tunnelUrl, proxyUrl } = await tunnel.connect();
 
-        // Handle graceful shutdown
-        process.on('SIGINT', () => {
-            console.log('\n🛑 Shutting down tunnel...');
-            tunnel.disconnect();
-        });
+            console.log(`Tunnel to ${localServerUrl} available on remote:`);
+            console.log(`🔒 Secure: ${tunnelUrl}`);
+            console.log(`📨 Proxy: ${proxyUrl}`);
+            // console.log(`🔒 Secure: https://${subdomain}.localhost:${tunnelPort}`)
+            // console.log(`📨 Proxy: http://${subdomain}.localhost:${this.proxyPort}`)
+
+            // Handle graceful shutdown
+            process.on('SIGINT', () => {
+                console.log('\n🛑 Shutting down tunnel...');
+                tunnel.disconnect();
+            });
+        } catch (error) {
+            console.error('❌ Tunnel error:', error);
+            process.exit(1);
+        }
     });
 
 program
@@ -69,7 +73,6 @@ program
     .option('--ca <paths...>', 'paths to CA certificate files')
     .action(async (options: ServerOptions) => {
         const { port, proxy, cert, key, ca } = options;
-
         // Validate SSL configuration
         if ((cert && !key) || (!cert && key)) {
             console.error('❌ Both --cert and --key must be provided for SSL');
@@ -96,7 +99,6 @@ program
         try {
             const { default: TunnelServer } = await import('../server/server.js');
             const server = new TunnelServer(serverOptions);
-
             server.start();
 
             // Handle graceful shutdown
