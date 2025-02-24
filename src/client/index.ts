@@ -3,15 +3,17 @@ import type { TunnelRequest, TunnelResponse, ConnectedMessage } from './types';
 export interface TunnelClientOptions {
     /**
      * The URL of your local server that will receive the tunneled requests
-     * @default "http://localhost:8000"
      */
-    localServerUrl?: string;
+    localServerUrl: string;
 
     /**
-     * The URL of the tunnel server
-     * @default "wss://localhost:3000"
+     * The URL of the tunnel server (remote)
      */
-    tunnelServerUrl?: string;
+    tunnelServerUrl: string;
+
+    // URL of local proxy that tunnel server uses
+    // Defaults to 5555
+    proxyPort?: number;
 
     /**
      * Called when the tunnel is established
@@ -29,16 +31,25 @@ export interface TunnelClientOptions {
     onError?: (error: Error) => void;
 }
 
+const DEFAULT_OPTIONS = {
+    proxyPort: 5555,
+};
+
 export class TunnelClient {
     private ws: WebSocket | null = null;
     private localServerUrl: string;
     private tunnelServerUrl: string;
+    private proxyPort: number;
     private options: TunnelClientOptions;
 
-    constructor(options: TunnelClientOptions = {}) {
-        this.options = options;
-        this.localServerUrl = options.localServerUrl || "http://localhost:8000";
-        this.tunnelServerUrl = options.tunnelServerUrl || "wss://localhost:3000";
+    constructor(options: TunnelClientOptions) {
+        this.options = {
+            ...DEFAULT_OPTIONS,
+            ...options
+        };
+        this.localServerUrl = this.options.localServerUrl;
+        this.tunnelServerUrl = this.options.tunnelServerUrl;
+        this.proxyPort = this.options.proxyPort!;
     }
 
     /**
@@ -66,9 +77,12 @@ export class TunnelClient {
 
             if (data.type === "connected") {
                 const message = data as ConnectedMessage;
-                const tunnelPort = new URL(this.tunnelServerUrl).port || "3000";
-                const httpPort = parseInt(tunnelPort) + 1;
-                console.log(`Tunnel established at: http://${message.subdomain}.localhost:${httpPort}`);
+                const tunnelPort = new URL(this.tunnelServerUrl).port || "4444";
+                //const httpPort = 5555//parseInt(tunnelPort) + 1;
+                console.log(`Tunnel to ${this.localServerUrl} available on remote:`)
+                console.log(`🔒 Secure: https://${message.subdomain}.localhost:${tunnelPort}`)
+                console.log(`📨 Proxy: http://${message.subdomain}.localhost:${this.proxyPort}`)
+                console.log(`Tunnel to local available on remote at: http://${message.subdomain}.localhost:${this.proxyPort}`);
                 this.options.onConnected?.(message.subdomain);
                 return;
             }
