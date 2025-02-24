@@ -14,7 +14,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild src/client/index.ts src/cli/bunnel.ts --bundle --platform=node --format=esm --outdir=dist --packages=external",
     "start": "bunnel client",
     "prepublishOnly": "npm run build"
   },
@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@types/commander": "^2.12.2",
+    "esbuild": "^0.20.1",
     "typescript": "^5.0.0"
   }
 }
