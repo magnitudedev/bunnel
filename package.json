@@ -28,6 +28,7 @@
     "proxy"
   ],
   "dependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
     "commander": "^11.1.0",
     "selfsigned": "^2.4.1"
   },

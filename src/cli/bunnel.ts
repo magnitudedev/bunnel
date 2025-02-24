@@ -49,8 +49,6 @@ program
             console.log(`Tunnel to ${localServerUrl} available on remote:`);
             console.log(`🔒 Secure: ${tunnelUrl}`);
             console.log(`📨 Proxy: ${proxyUrl}`);
-            // console.log(`🔒 Secure: https://${subdomain}.localhost:${tunnelPort}`)
-            // console.log(`📨 Proxy: http://${subdomain}.localhost:${this.proxyPort}`)
 
             // Handle graceful shutdown
             process.on('SIGINT', () => {

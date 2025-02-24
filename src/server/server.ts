@@ -1,6 +1,11 @@
 import type { Server, ServerWebSocket } from "bun";
 import selfsigned from 'selfsigned';
 import { LocalProxyServer } from "./proxy";
+import { init } from '@paralleldrive/cuid2';
+
+const createId = init({
+    length: 12
+});
 
 interface TunnelData {
     subdomain: string;
@@ -439,7 +444,7 @@ class TunnelServer {
     }
 
     private generateSubdomain(): string {
-        return Math.random().toString(36).substring(2, 8);
+        return createId();
     }
 
     private headersToObject(headers: Headers): Record<string, string> {
