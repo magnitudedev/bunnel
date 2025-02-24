@@ -28,7 +28,7 @@ program
     .description('Start a tunnel client')
     .option('-l, --local <url>', 'local server URL', 'http://localhost:8000')
     .option('-t, --tunnel <url>', 'tunnel server URL', 'wss://localhost:4444')
-    .action((options: ClientOptions) => {
+    .action(async (options: ClientOptions) => {
         const tunnel = new TunnelClient({
             localServerUrl: options.local,
             tunnelServerUrl: options.tunnel,
@@ -50,7 +50,7 @@ program
         console.log(`📡 Connecting to tunnel server at ${options.tunnel}...`);
         console.log(`🔄 Will forward requests to ${options.local}`);
 
-        tunnel.connect();
+        await tunnel.connect();
 
         // Handle graceful shutdown
         process.on('SIGINT', () => {

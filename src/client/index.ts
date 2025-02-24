@@ -29,10 +29,17 @@ export interface TunnelClientOptions {
      * Called when an error occurs
      */
     onError?: (error: Error) => void;
+
+    /**
+     * Timeout in milliseconds for local server availability check
+     * Default: 5000 (5 seconds)
+     */
+    serverCheckTimeout?: number;
 }
 
 const DEFAULT_OPTIONS = {
     proxyPort: 5555,
+    serverCheckTimeout: 5000,
 };
 
 export class TunnelClient {
@@ -40,6 +47,7 @@ export class TunnelClient {
     private localServerUrl: string;
     private tunnelServerUrl: string;
     private proxyPort: number;
+    private serverCheckTimeout: number;
     private options: TunnelClientOptions;
 
     constructor(options: TunnelClientOptions) {
@@ -50,15 +58,46 @@ export class TunnelClient {
         this.localServerUrl = this.options.localServerUrl;
         this.tunnelServerUrl = this.options.tunnelServerUrl;
         this.proxyPort = this.options.proxyPort!;
+        this.serverCheckTimeout = this.options.serverCheckTimeout!;
     }
 
     /**
-     * Connect to the tunnel server
+     * Check if the local server is available
+     * @returns Promise that resolves when the server is available, rejects if unavailable
      */
-    public connect(): void {
+    public async checkLocalServerAvailability(): Promise<void> {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.serverCheckTimeout);
+            
+            const response = await fetch(this.localServerUrl, {
+                method: 'HEAD',
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`Local server responded with status: ${response.status}`);
+            }
+            
+            console.log("Local server is available");
+        } catch (error) {
+            console.error("Local server check failed:", error);
+            throw new Error(`Local server at ${this.localServerUrl} is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
+     * Connect to the tunnel server after verifying local server is available
+     */
+    public async connect(): Promise<void> {
         if (this.ws) {
             throw new Error("Already connected");
         }
+
+        // Check if local server is available before connecting to tunnel
+        await this.checkLocalServerAvailability();
 
         console.log("Connecting to tunnel server...");
         
@@ -78,7 +117,6 @@ export class TunnelClient {
             if (data.type === "connected") {
                 const message = data as ConnectedMessage;
                 const tunnelPort = new URL(this.tunnelServerUrl).port || "4444";
-                //const httpPort = 5555//parseInt(tunnelPort) + 1;
                 console.log(`Tunnel to ${this.localServerUrl} available on remote:`)
                 console.log(`🔒 Secure: https://${message.subdomain}.localhost:${tunnelPort}`)
                 console.log(`📨 Proxy: http://${message.subdomain}.localhost:${this.proxyPort}`)
