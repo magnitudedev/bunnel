@@ -50,8 +50,12 @@ export class TunnelClient {
         }
 
         console.log("Connecting to tunnel server...");
+        
+        // Temporarily allow self-signed TLS connections as we connect to WSS proxy
+        const original = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         this.ws = new WebSocket(this.tunnelServerUrl);
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = original;
 
         this.ws.onopen = () => {
             console.log("Connected to tunnel server");
