@@ -1,7 +1,7 @@
 {
   "name": "bunnel-server",
   "version": "0.1.1",
-  "description": "Secure websocket reverse tunnel",
+  "description": "WebSocket reverse tunnel",
   "type": "module",
   "main": "dist/server/server.js",
   "types": "dist/server/server.d.ts",
@@ -29,8 +29,7 @@
   ],
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",
-    "commander": "^11.1.0",
-    "selfsigned": "^2.4.1"
+    "commander": "^11.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

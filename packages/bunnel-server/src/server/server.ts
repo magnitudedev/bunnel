@@ -1,6 +1,4 @@
 import type { Server, ServerWebSocket } from "bun";
-import selfsigned from 'selfsigned';
-import { LocalProxyServer } from "./proxy";
 import { init } from '@paralleldrive/cuid2';
 
 const createId = init({
@@ -41,61 +39,29 @@ interface TunnelInfo {
 }
 
 export interface TunnelServerOptions {
-    tunnelPort?: number; // Port for the WSS tunnel
-    proxyPort?: number; // Port for the insecure local proxy to the tunnel
+    tunnelPort?: number; // Port for the WS tunnel
     idleTimeout?: number;  // Time in ms before cleaning up idle tunnels
     reconnectGrace?: number;  // Time in ms to allow for reconnection
-    tls?: {
-        cert: string;    // Path to certificate file
-        key: string;     // Path to private key file
-        ca?: string[];   // Optional CA certificates
-    };
 }
 
 const DEFAULT_OPTIONS = {
     tunnelPort: 4444,
-    proxyPort: 5555,
     idleTimeout: 5 * 60 * 1000,  // 5 minutes
-    reconnectGrace: 1000,  // 1 second
-    tls: undefined
+    reconnectGrace: 1000  // 1 second
 };
 
 class TunnelServer {
     private tunnels: Map<string, TunnelInfo>;
     private pendingRequests: Map<string, (response: Response) => void>;
-    private options: Required<Omit<TunnelServerOptions, 'tls'>> & { tls: NonNullable<TunnelServerOptions['tls']> };
+    private options: Required<TunnelServerOptions>;
     private server?: Server;
-    private proxyServer?: Server;
     private monitorInterval?: number;
-
-    private generateCertificates() {
-        const attrs = [{ name: 'commonName', value: 'localhost' }];
-        const pems = selfsigned.generate(attrs, {
-            days: 365,
-            keySize: 2048,
-            algorithm: 'sha256'
-        });
-        return {
-            cert: pems.cert,
-            key: pems.private
-        };
-    }
 
     constructor(options: TunnelServerOptions = {}) {
         console.log("HELLO")
-        // Generate self-signed certificates if not provided
-        if (!options.tls) {
-            const certs = this.generateCertificates();
-            options.tls = {
-                cert: certs.cert,
-                key: certs.key
-            };
-        }
-
         this.options = {
             ...DEFAULT_OPTIONS,
-            ...options,
-            tls: options.tls as NonNullable<TunnelServerOptions['tls']>
+            ...options
         };
         this.tunnels = new Map();
         this.pendingRequests = new Map();
@@ -112,37 +78,14 @@ class TunnelServer {
             }
         };
 
-        // Add TLS configuration
-        try {
-            const { cert, key, ca } = this.options.tls;
-            // If cert/key are file paths, load them with Bun.file
-            // If they're certificate strings (from selfsigned), use them directly
-            serverConfig.tls = {
-                cert: cert.startsWith('-----BEGIN') ? cert : Bun.file(cert),
-                key: key.startsWith('-----BEGIN') ? key : Bun.file(key),
-            };
-            if (ca) {
-                serverConfig.tls.ca = ca.map(caPath => Bun.file(caPath));
-            }
-        } catch (err) {
-            console.error('Failed to configure TLS:', err);
-            throw new Error('Failed to configure TLS. Please check your certificate configuration.');
-        }
-
         this.server = Bun.serve(serverConfig);
-
-        // Start the HTTP proxy server
-        const proxy = new LocalProxyServer(this.options.tunnelPort, this.options.proxyPort);
-        this.proxyServer = proxy.start();
 
         // Start tunnel monitoring
         this.monitorInterval = setInterval(() => {
             this.monitorTunnels();
         }, 60000) as unknown as number;
 
-        const protocol = this.options.tls ? 'wss' : 'ws';
-        console.log(`Tunnel server started on ${protocol}://localhost:${this.options.tunnelPort}`);
-        console.log(`Local HTTP access available on http://localhost:${this.options.proxyPort}`);
+        console.log(`Tunnel server started on ws://localhost:${this.options.tunnelPort}`);
     }
 
     public stop(): void {
@@ -150,7 +93,6 @@ class TunnelServer {
             clearInterval(this.monitorInterval);
         }
         this.server?.stop();
-        this.proxyServer?.stop();
         this.tunnels.clear();
         this.pendingRequests.clear();
     }
@@ -179,12 +121,21 @@ class TunnelServer {
 
             console.log("Got request:", req)
             
-            // Handle health check for root path
-            if (req.method === 'GET' && url.pathname === '/') {
-                return new Response('Tunnel server is running', { 
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                });
+            // Handle health check for root path - only for non-WebSocket requests to the root domain
+            if (req.method === 'GET' && url.pathname === '/' && 
+                req.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
+                
+                // Parse the host to check if it's a subdomain request
+                const hostWithoutPort = host.includes(':') ? host.split(':')[0] : host;
+                const hostParts = hostWithoutPort.split('.');
+                
+                // Only respond to health check if it's the root domain (localhost)
+                if (hostParts.length === 1 && hostParts[0] === 'localhost') {
+                    return new Response('Tunnel server is running', { 
+                        status: 200,
+                        headers: { 'Content-Type': 'text/plain' }
+                    });
+                }
             }
             
             // Enhanced logging: Log full request details

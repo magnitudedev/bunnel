@@ -12,12 +12,6 @@ export interface TunnelClientOptions {
     tunnelServerUrl: string;
 
     /**
-     * Port for the proxy server
-     * Default: 5555
-     */
-    proxyPort?: number;
-
-    /**
      * Called when the tunnel is closed
      * This is kept as a callback since it's an event that happens after setup
      */
@@ -28,31 +22,21 @@ export interface TunnelClientOptions {
      * Default: 5000 (5 seconds)
      */
     serverCheckTimeout?: number;
-
-    /**
-     * Useful if remote tunnel server is not behind a trusted gateway (e.g. API Gateway)
-     * and you're using the self-signed SSL from the bunnel server. 
-     */
-    allowSelfSignedTunnel?: boolean;
 }
 
 const DEFAULT_OPTIONS = {
-    proxyPort: 5555,
-    serverCheckTimeout: 5000,
-    allowSelfSignedTunnel: false
+    serverCheckTimeout: 5000
 };
 
 export interface ConnectionInfo {
     subdomain: string;
     tunnelUrl: string;
-    proxyUrl: string;
 }
 
 export class TunnelClient {
     private ws: WebSocket | null = null;
     private localServerUrl: string;
     private tunnelServerUrl: string;
-    private proxyPort: number;
     private serverCheckTimeout: number;
     private options: TunnelClientOptions;
 
@@ -63,7 +47,6 @@ export class TunnelClient {
         };
         this.localServerUrl = this.options.localServerUrl;
         this.tunnelServerUrl = this.options.tunnelServerUrl;
-        this.proxyPort = this.options.proxyPort!;
         this.serverCheckTimeout = this.options.serverCheckTimeout!;
     }
 
@@ -105,16 +88,7 @@ export class TunnelClient {
         await this.checkLocalServerAvailability();
         
         return new Promise((resolve, reject) => {
-
-            if (this.options.allowSelfSignedTunnel) {
-                // Temporarily allow self-signed TLS connections
-                const original = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-                this.ws = new WebSocket(this.tunnelServerUrl);
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = original;
-            } else {
-                this.ws = new WebSocket(this.tunnelServerUrl);
-            }
+            this.ws = new WebSocket(this.tunnelServerUrl);
 
             this.ws.onopen = () => {
                 console.log("Connected to tunnel server");
@@ -128,14 +102,9 @@ export class TunnelClient {
                         const message = data as ConnectedMessage;
                         const tunnelPort = new URL(this.tunnelServerUrl).port || "4444";
                         
-                        // console.log(`Tunnel to ${this.localServerUrl} available on remote:`)
-                        // console.log(`🔒 Secure: https://${message.subdomain}.localhost:${tunnelPort}`)
-                        // console.log(`📨 Proxy: http://${message.subdomain}.localhost:${this.proxyPort}`)
-                        
                         resolve({
                             subdomain: message.subdomain,
-                            tunnelUrl: `https://${message.subdomain}.localhost:${tunnelPort}`,
-                            proxyUrl: `http://${message.subdomain}.localhost:${this.proxyPort}`
+                            tunnelUrl: `http://${message.subdomain}.localhost:${tunnelPort}`
                         });
                         return;
                     }
