@@ -27,6 +27,11 @@
     "proxy",
     "server"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/magnitudedev/bunnel.git",
+    "directory": "packages/bunnel-server"
+  },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",
     "commander": "^11.1.0"

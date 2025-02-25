@@ -26,6 +26,11 @@
     "local",
     "proxy"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/magnitudedev/bunnel.git",
+    "directory": "packages/bunnel"
+  },
   "dependencies": {
     "commander": "^11.1.0"
   },
