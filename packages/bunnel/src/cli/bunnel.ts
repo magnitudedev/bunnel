@@ -5,6 +5,7 @@ import { TunnelClient } from '../client/index.js';
 interface ClientOptions {
     local: string;
     tunnel: string;
+    selfSigned: boolean;
 }
 
 const program = new Command();
@@ -13,6 +14,7 @@ program
     .description('Bunnel client')
     .requiredOption('-l, --local <url>', 'local server URL, for example http://localhost:3000')
     .requiredOption('-t, --tunnel <url>', 'tunnel server URL, for example, wss://myserver.com:4444')
+    .option('-s, --self-signed', 'allow self-signed SSL when connecting to tunnel server', false)
     .action(async (options: ClientOptions) => {
         const localServerUrl = options.local;
 
@@ -22,7 +24,8 @@ program
             onClosed: () => {
                 console.log('🔌 Tunnel closed');
                 process.exit(0);
-            }
+            },
+            allowSelfSignedTunnel: options.selfSigned
         });
 
         console.log(`📡 Connecting to tunnel server at ${options.tunnel}...`);

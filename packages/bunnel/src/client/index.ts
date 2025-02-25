@@ -28,11 +28,18 @@ export interface TunnelClientOptions {
      * Default: 5000 (5 seconds)
      */
     serverCheckTimeout?: number;
+
+    /**
+     * Useful if remote tunnel server is not behind a trusted gateway (e.g. API Gateway)
+     * and you're using the self-signed SSL from the bunnel server. 
+     */
+    allowSelfSignedTunnel?: boolean;
 }
 
 const DEFAULT_OPTIONS = {
     proxyPort: 5555,
     serverCheckTimeout: 5000,
+    allowSelfSignedTunnel: false
 };
 
 export interface ConnectionInfo {
@@ -98,11 +105,16 @@ export class TunnelClient {
         await this.checkLocalServerAvailability();
         
         return new Promise((resolve, reject) => {
-            // Temporarily allow self-signed TLS connections
-            const original = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-            this.ws = new WebSocket(this.tunnelServerUrl);
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = original;
+
+            if (this.options.allowSelfSignedTunnel) {
+                // Temporarily allow self-signed TLS connections
+                const original = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+                this.ws = new WebSocket(this.tunnelServerUrl);
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = original;
+            } else {
+                this.ws = new WebSocket(this.tunnelServerUrl);
+            }
 
             this.ws.onopen = () => {
                 console.log("Connected to tunnel server");
