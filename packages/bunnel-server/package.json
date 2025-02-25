@@ -1,6 +1,6 @@
 {
   "name": "bunnel-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "WebSocket reverse tunnel",
   "type": "module",
   "main": "dist/server/server.js",

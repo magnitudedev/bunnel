@@ -1,7 +1,7 @@
 {
   "name": "bunnel",
-  "version": "0.1.0",
-  "description": "Secure websocket reverse tunnel",
+  "version": "0.1.1",
+  "description": "Websocket reverse tunnel",
   "type": "module",
   "main": "dist/client/index.js",
   "types": "dist/client/index.d.ts",
