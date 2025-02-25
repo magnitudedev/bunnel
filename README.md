@@ -1,6 +1,6 @@
 # Bunnel
 
-A secure web traffic reverse tunnel for exposing local web servers to specific remote machines.
+Bun-based secure web traffic reverse tunnel for exposing local web servers to specific remote machines (server needs bun, client does not).
 
 For bunnel to work, the remote machine must (1) be running the bunnel-server and (2) be the only machine that accesses the tunnel.
 

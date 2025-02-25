@@ -1,7 +1,7 @@
 {
   "name": "bunnel-server",
   "version": "0.1.0",
-  "description": "A simple HTTP tunnel server for local development",
+  "description": "Secure websocket reverse tunnel",
   "type": "module",
   "main": "dist/server/server.js",
   "types": "dist/server/server.d.ts",
