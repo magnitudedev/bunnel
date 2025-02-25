@@ -8,4 +8,4 @@ This is not for exposing local to a public url, but rather only gives tunnel acc
 
 For example, say you have browser infrastructure running on a machine at mydomain.com. You could give this remote machine access to `localhost:3000` for its browser to access using bunnel.
 
-See [bunnel](packages/bunnel/README.md) or [bunnel-server](pacakges/bunnel-server/README.md) for more details.
+See [bunnel](packages/bunnel/README.md) or [bunnel-server](packages/bunnel-server/README.md) for more details.
