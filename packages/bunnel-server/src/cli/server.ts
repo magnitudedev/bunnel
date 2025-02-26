@@ -19,7 +19,7 @@ program
             tunnelPort: parseInt(port)
         };
 
-        console.log(`🚀 Starting tunnel server on ws://localhost:${port}...`);
+        console.log(`🚀 Starting tunnel server on ws://0.0.0.0:${port}...`);
 
         try {
             const { default: TunnelServer } = await import('../server/server.js');

@@ -68,7 +68,21 @@ class TunnelServer {
     }
 
     public start(): void {
-        const serverConfig: any = {
+        // const serverConfig: any = {
+        //     hostname: "0.0.0.0",
+        //     port: this.options.tunnelPort,
+        //     fetch: this.handleRequest.bind(this),
+        //     websocket: {
+        //         open: this.handleWebSocketOpen.bind(this),
+        //         message: this.handleWebSocketMessage.bind(this),
+        //         close: this.handleWebSocketClose.bind(this)
+        //     }
+        // };
+
+        const host = "0.0.0.0";
+
+        this.server = Bun.serve({
+            hostname: host,
             port: this.options.tunnelPort,
             fetch: this.handleRequest.bind(this),
             websocket: {
@@ -76,16 +90,14 @@ class TunnelServer {
                 message: this.handleWebSocketMessage.bind(this),
                 close: this.handleWebSocketClose.bind(this)
             }
-        };
-
-        this.server = Bun.serve(serverConfig);
+        });
 
         // Start tunnel monitoring
         this.monitorInterval = setInterval(() => {
             this.monitorTunnels();
         }, 60000) as unknown as number;
 
-        console.log(`Tunnel server started on ws://localhost:${this.options.tunnelPort}`);
+        console.log(`Tunnel server started on ws://${host}:${this.options.tunnelPort}`);
     }
 
     public stop(): void {
@@ -120,7 +132,13 @@ class TunnelServer {
             const host = req.headers.get('host') || url.hostname;
 
             console.log("Got request:", req)
+            console.log(`[REQUEST] ${new Date().toISOString()}`);
+            console.log(`[REQUEST] URL: ${req.url}`);
+            console.log(`[REQUEST] Method: ${req.method}`);
+            console.log(`[REQUEST] Host header: ${host}`);
+            console.log(`[REQUEST] URL hostname: ${url.hostname}`);
             
+            // Handle health check for root path - only for non-WebSocket requests to the root domain
             // Handle health check for root path - only for non-WebSocket requests to the root domain
             if (req.method === 'GET' && url.pathname === '/' && 
                 req.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
@@ -129,21 +147,20 @@ class TunnelServer {
                 const hostWithoutPort = host.includes(':') ? host.split(':')[0] : host;
                 const hostParts = hostWithoutPort.split('.');
                 
-                // Only respond to health check if it's the root domain (localhost)
-                if (hostParts.length === 1 && hostParts[0] === 'localhost') {
+                // Check if this is a subdomain request (<id>.localhost)
+                const isSubdomainRequest = hostParts.length === 2 && hostParts[1] === 'localhost';
+                
+                // Only respond to health check if it's NOT a subdomain request
+                if (!isSubdomainRequest) {
+                    console.log('[REQUEST] Returning health check 200 response')
                     return new Response('Tunnel server is running', { 
                         status: 200,
                         headers: { 'Content-Type': 'text/plain' }
                     });
                 }
             }
-            
-            // Enhanced logging: Log full request details
-            console.log(`[REQUEST] ${new Date().toISOString()}`);
-            console.log(`[REQUEST] URL: ${req.url}`);
-            console.log(`[REQUEST] Method: ${req.method}`);
-            console.log(`[REQUEST] Host header: ${host}`);
-            console.log(`[REQUEST] URL hostname: ${url.hostname}`);
+
+            console.log('[REQUEST] Request to subdomain tunnel, forwarding')
             
             let parts: string[] = [];
             
