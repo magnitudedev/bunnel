@@ -196,22 +196,11 @@ class TunnelServer {
                     console.log(`[WS] Host parts length: ${parts.length}`);
                     console.log(`[WS] First part: '${parts[0]}', Second part (if exists): '${parts[1]}'`);
                     
-                    // Check if direct localhost connection (for new tunnel)
-                    if (parts.length === 1 && parts[0] === 'localhost') {
-                        console.log('[WS] Identified as new tunnel connection at localhost');
-                        const subdomain = this.generateSubdomain();
-                        console.log(`[WS] Generated subdomain: ${subdomain}`);
-                        
-                        const success = server.upgrade(req, {
-                            data: { subdomain, isControl: true }
-                        });
-                        
-                        console.log(`[WS] Upgrade result: ${success ? 'Success' : 'Failed'}`);
-                        return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
-                    }
-                    
-                    // Check if subdomain.localhost connection (for client)
-                    if (parts.length === 2 && parts[1] === 'localhost') {
+                    // Check if direct connection (for new tunnel) - accept any non-subdomain host
+                    // This handles both localhost:4444 and api.app.magnitude.run:4444
+                    const isLocalhostSubdomain = parts.length >= 2 && parts[parts.length - 1] === 'localhost';
+
+                    if (isLocalhostSubdomain) {
                         const subdomain = parts[0];
                         console.log(`[WS] Identified as client connection for subdomain: ${subdomain}`);
                         
@@ -227,48 +216,27 @@ class TunnelServer {
                         
                         console.log(`[WS] Client upgrade result: ${success ? 'Success' : 'Failed'}`);
                         return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
-                    }
-                    
-                    // Try alternative hostname parsing if previous checks failed
-                    // This might help if there's an issue with how your infrastructure handles Host headers
-                    if (urlParts.length === 1 && urlParts[0] === 'localhost') {
-                        console.log('[WS] Alternative check: Identified as new tunnel connection');
+                    } else {
+                        console.log('[WS] Identified as new tunnel control connection');
                         const subdomain = this.generateSubdomain();
+                        console.log(`[WS] Generated subdomain: ${subdomain}`);
                         
                         const success = server.upgrade(req, {
                             data: { subdomain, isControl: true }
                         });
                         
-                        console.log(`[WS] Alternative upgrade result: ${success ? 'Success' : 'Failed'}`);
+                        console.log(`[WS] Upgrade result: ${success ? 'Success' : 'Failed'}`);
                         return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
                     }
+                    // // If we get here, neither parsing method worked
+                    // console.log(`[WS] Invalid WebSocket connection request`);
+                    // console.log(`[WS] Expected formats:`);
+                    // console.log(`[WS]   - some.domain.com:${this.options.tunnelPort} (for control connection)`);
+                    // console.log(`[WS]   - localhost:${this.options.tunnelPort} (for control connection)`);
+                    // console.log(`[WS]   - <subdomain>.localhost:${this.options.tunnelPort} (for client connection)`);
+                    // console.log(`[WS] Actual host received: ${host}`);
                     
-                    if (urlParts.length === 2 && urlParts[1] === 'localhost') {
-                        const subdomain = urlParts[0];
-                        console.log(`[WS] Alternative check: Identified as client connection for subdomain: ${subdomain}`);
-                        
-                        const tunnel = this.tunnels.get(subdomain);
-                        if (!tunnel) {
-                            console.log(`[WS] Alternative check: No tunnel found for subdomain: ${subdomain}`);
-                            return new Response('Tunnel not found', { status: 404 });
-                        }
-                        
-                        const success = server.upgrade(req, {
-                            data: { subdomain, isControl: false }
-                        });
-                        
-                        console.log(`[WS] Alternative client upgrade result: ${success ? 'Success' : 'Failed'}`);
-                        return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
-                    }
-                    
-                    // If we get here, neither parsing method worked
-                    console.log(`[WS] Invalid WebSocket connection request`);
-                    console.log(`[WS] Expected formats:`);
-                    console.log(`[WS]   - localhost:${this.options.tunnelPort} (for control connection)`);
-                    console.log(`[WS]   - <subdomain>.localhost:${this.options.tunnelPort} (for client connection)`);
-                    console.log(`[WS] Actual host received: ${host}`);
-                    
-                    return new Response('Invalid WebSocket connection request', { status: 400 });
+                    // return new Response('Invalid WebSocket connection request', { status: 400 });
                 } catch (err) {
                     console.error('[WS] Error handling WebSocket upgrade:', err);
                     return new Response('WebSocket upgrade failed', { status: 500 });
