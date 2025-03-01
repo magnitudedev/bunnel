@@ -1,4 +1,5 @@
 import type { TunnelRequest, TunnelResponse, ConnectedMessage } from './types';
+import logger from './logger';
 
 export interface TunnelClientOptions {
     /**
@@ -91,7 +92,7 @@ export class TunnelClient {
             this.ws = new WebSocket(this.tunnelServerUrl);
 
             this.ws.onopen = () => {
-                console.log("Connected to tunnel server");
+                logger.debug("Connected to tunnel server");
             };
 
             this.ws.onmessage = async (event) => {
@@ -134,7 +135,7 @@ export class TunnelClient {
 
                     this.ws?.send(JSON.stringify(tunnelResponse));
                 } catch (error) {
-                    console.error("Error handling message:", error);
+                    logger.warn("Error handling tunnel message:", error);
 
                     // If we're still in the connection phase, reject the promise
                     if (!this.isConnected()) {
@@ -154,20 +155,20 @@ export class TunnelClient {
                         this.ws?.send(JSON.stringify(errorResponse));
                     } catch {
                         // If we can't even parse the request ID, we can't respond
-                        console.error("Failed to send error response");
+                        logger.warn("Failed to send tunnel error response");
                     }
                 }
             };
 
             this.ws.onclose = () => {
-                console.log("Disconnected from tunnel server");
+                logger.debug("Disconnected from tunnel server");
                 this.ws = null;
                 this.options.onClosed?.();
             };
 
             this.ws.onerror = (event) => {
-                console.error("WebSocket error:", event);
-                const error = new Error("WebSocket connection error");
+                logger.error("WebSocket error:", event);
+                const error = new Error(`WebSocket connection error: ${event}`);
                 reject(error);
             };
         });
