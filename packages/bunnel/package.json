@@ -1,6 +1,6 @@
 {
   "name": "bunnel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Websocket reverse tunnel",
   "type": "module",
   "main": "dist/client/index.js",
@@ -14,9 +14,10 @@
     "README.md"
   ],
   "scripts": {
-    "build": "esbuild src/client/index.ts src/cli/bunnel.ts --bundle --platform=node --format=esm --outdir=dist --packages=external",
+    "build": "tsc && pkgroll",
+    "check": "tsc --noEmit",
     "start": "bunnel client",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build"
   },
   "keywords": [
     "tunnel",
@@ -38,6 +39,7 @@
     "@types/commander": "^2.12.2",
     "@types/node": "^22.13.5",
     "esbuild": "^0.20.1",
+    "pkgroll": "^2.11.2",
     "typescript": "^5.0.0"
   }
 }
