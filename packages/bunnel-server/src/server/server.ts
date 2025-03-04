@@ -1,5 +1,6 @@
 import type { Server, ServerWebSocket } from "bun";
 import { init } from '@paralleldrive/cuid2';
+import logger from './logger';
 
 const createId = init({
     length: 12
@@ -58,7 +59,6 @@ class TunnelServer {
     private monitorInterval?: number;
 
     constructor(options: TunnelServerOptions = {}) {
-        console.log("HELLO")
         this.options = {
             ...DEFAULT_OPTIONS,
             ...options
@@ -97,7 +97,7 @@ class TunnelServer {
             this.monitorTunnels();
         }, 60000) as unknown as number;
 
-        console.log(`Tunnel server started on ws://${host}:${this.options.tunnelPort}`);
+        logger.info(`Tunnel server started on ws://${host}:${this.options.tunnelPort}`);
     }
 
     public stop(): void {
@@ -114,7 +114,7 @@ class TunnelServer {
         for (const [subdomain, tunnel] of this.tunnels) {
             // Clean up tunnels that have been idle too long
             if (now - tunnel.lastActive > this.options.idleTimeout) {
-                console.log(`Cleaning up idle tunnel: ${subdomain}`);
+                logger.debug(`Cleaning up idle tunnel: ${subdomain}`);
                 this.cleanupTunnel(subdomain);
                 continue;
             }
@@ -131,12 +131,12 @@ class TunnelServer {
             const url = new URL(req.url);
             const host = req.headers.get('host') || url.hostname;
 
-            console.log("Got request:", req)
-            console.log(`[REQUEST] ${new Date().toISOString()}`);
-            console.log(`[REQUEST] URL: ${req.url}`);
-            console.log(`[REQUEST] Method: ${req.method}`);
-            console.log(`[REQUEST] Host header: ${host}`);
-            console.log(`[REQUEST] URL hostname: ${url.hostname}`);
+            logger.debug("Got request:", req)
+            logger.debug(`[REQUEST] ${new Date().toISOString()}`);
+            logger.debug(`[REQUEST] URL: ${req.url}`);
+            logger.debug(`[REQUEST] Method: ${req.method}`);
+            logger.debug(`[REQUEST] Host header: ${host}`);
+            logger.debug(`[REQUEST] URL hostname: ${url.hostname}`);
             
             // Handle health check for root path - only for non-WebSocket requests to the root domain
             // Handle health check for root path - only for non-WebSocket requests to the root domain
@@ -152,7 +152,7 @@ class TunnelServer {
                 
                 // Only respond to health check if it's NOT a subdomain request
                 if (!isSubdomainRequest) {
-                    console.log('[REQUEST] Returning health check 200 response')
+                    logger.debug('[REQUEST] Returning health check 200 response')
                     return new Response('Tunnel server is running', { 
                         status: 200,
                         headers: { 'Content-Type': 'text/plain' }
@@ -160,7 +160,7 @@ class TunnelServer {
                 }
             }
 
-            console.log('[REQUEST] Request to subdomain tunnel, forwarding')
+            logger.debug('[REQUEST] Request to subdomain tunnel, forwarding')
             
             let parts: string[] = [];
             
@@ -168,33 +168,33 @@ class TunnelServer {
             if (host.includes(':')) {
                 // Remove port if present
                 parts = host.split(':')[0].split('.');
-                console.log(`[REQUEST] Host parts (from header): ${JSON.stringify(parts)}`);
+                logger.debug(`[REQUEST] Host parts (from header): ${JSON.stringify(parts)}`);
             } else {
                 parts = host.split('.');
-                console.log(`[REQUEST] Host parts: ${JSON.stringify(parts)}`);
+                logger.debug(`[REQUEST] Host parts: ${JSON.stringify(parts)}`);
             }
             
             // Also log URL parts as fallback
             const urlParts = url.hostname.split('.');
-            console.log(`[REQUEST] URL hostname parts: ${JSON.stringify(urlParts)}`);
+            logger.debug(`[REQUEST] URL hostname parts: ${JSON.stringify(urlParts)}`);
             
             // Log all headers for debugging
-            console.log('[REQUEST] Headers:');
+            logger.debug('[REQUEST] Headers:');
             const allHeaders: Record<string, string> = {};
             req.headers.forEach((value, key) => {
                 allHeaders[key] = value;
-                console.log(`[REQUEST]   ${key}: ${value}`);
+                logger.debug(`[REQUEST]   ${key}: ${value}`);
             });
 
             // Check if this is a WebSocket upgrade request
             const upgradeHeader = req.headers.get('upgrade');
-            console.log(`[REQUEST] Upgrade header: ${upgradeHeader}`);
+            logger.debug(`[REQUEST] Upgrade header: ${upgradeHeader}`);
             
             if (upgradeHeader?.toLowerCase() === 'websocket') {
                 try {
-                    console.log(`[WS] Processing WebSocket upgrade request`);
-                    console.log(`[WS] Host parts length: ${parts.length}`);
-                    console.log(`[WS] First part: '${parts[0]}', Second part (if exists): '${parts[1]}'`);
+                    logger.debug(`[WS] Processing WebSocket upgrade request`);
+                    logger.debug(`[WS] Host parts length: ${parts.length}`);
+                    logger.debug(`[WS] First part: '${parts[0]}', Second part (if exists): '${parts[1]}'`);
                     
                     // Check if direct connection (for new tunnel) - accept any non-subdomain host
                     // This handles both localhost:4444 and api.app.magnitude.run:4444
@@ -202,11 +202,11 @@ class TunnelServer {
 
                     if (isLocalhostSubdomain) {
                         const subdomain = parts[0];
-                        console.log(`[WS] Identified as client connection for subdomain: ${subdomain}`);
+                        logger.debug(`[WS] Identified as client connection for subdomain: ${subdomain}`);
                         
                         const tunnel = this.tunnels.get(subdomain);
                         if (!tunnel) {
-                            console.log(`[WS] No tunnel found for subdomain: ${subdomain}`);
+                            logger.debug(`[WS] No tunnel found for subdomain: ${subdomain}`);
                             return new Response('Tunnel not found', { status: 404 });
                         }
                         
@@ -214,31 +214,31 @@ class TunnelServer {
                             data: { subdomain, isControl: false }
                         });
                         
-                        console.log(`[WS] Client upgrade result: ${success ? 'Success' : 'Failed'}`);
+                        logger.debug(`[WS] Client upgrade result: ${success ? 'Success' : 'Failed'}`);
                         return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
                     } else {
-                        console.log('[WS] Identified as new tunnel control connection');
+                        logger.debug('[WS] Identified as new tunnel control connection');
                         const subdomain = this.generateSubdomain();
-                        console.log(`[WS] Generated subdomain: ${subdomain}`);
+                        logger.debug(`[WS] Generated subdomain: ${subdomain}`);
                         
                         const success = server.upgrade(req, {
                             data: { subdomain, isControl: true }
                         });
                         
-                        console.log(`[WS] Upgrade result: ${success ? 'Success' : 'Failed'}`);
+                        logger.debug(`[WS] Upgrade result: ${success ? 'Success' : 'Failed'}`);
                         return success ? new Response() : new Response('WebSocket upgrade failed', { status: 500 });
                     }
                     // // If we get here, neither parsing method worked
-                    // console.log(`[WS] Invalid WebSocket connection request`);
-                    // console.log(`[WS] Expected formats:`);
-                    // console.log(`[WS]   - some.domain.com:${this.options.tunnelPort} (for control connection)`);
-                    // console.log(`[WS]   - localhost:${this.options.tunnelPort} (for control connection)`);
-                    // console.log(`[WS]   - <subdomain>.localhost:${this.options.tunnelPort} (for client connection)`);
-                    // console.log(`[WS] Actual host received: ${host}`);
+                    // logger.debug(`[WS] Invalid WebSocket connection request`);
+                    // logger.debug(`[WS] Expected formats:`);
+                    // logger.debug(`[WS]   - some.domain.com:${this.options.tunnelPort} (for control connection)`);
+                    // logger.debug(`[WS]   - localhost:${this.options.tunnelPort} (for control connection)`);
+                    // logger.debug(`[WS]   - <subdomain>.localhost:${this.options.tunnelPort} (for client connection)`);
+                    // logger.debug(`[WS] Actual host received: ${host}`);
                     
                     // return new Response('Invalid WebSocket connection request', { status: 400 });
                 } catch (err) {
-                    console.error('[WS] Error handling WebSocket upgrade:', err);
+                    logger.error('[WS] Error handling WebSocket upgrade:', err);
                     return new Response('WebSocket upgrade failed', { status: 500 });
                 }
             }
@@ -282,7 +282,7 @@ class TunnelServer {
 
                     return response;
                 } catch (err) {
-                    console.error('Error processing tunnel request:', err);
+                    logger.error('Error processing tunnel request:', err);
                     this.pendingRequests.delete(requestId);
 
                     if (err instanceof Error && err.message === 'Request timeout') {
@@ -293,10 +293,10 @@ class TunnelServer {
                 }
             }
 
-            console.log('[REQUEST] No matching route found, returning 404');
+            logger.debug('[REQUEST] No matching route found, returning 404');
             return new Response('Not found', { status: 404 });
         } catch (err) {
-            console.error('Unexpected error handling request:', err);
+            logger.error('Unexpected error handling request:', err);
             return new Response('Internal server error', { status: 500 });
         }
     }
@@ -305,12 +305,12 @@ class TunnelServer {
         const subdomain = ws.data.subdomain;
 
         if (!subdomain) {
-            console.error('WebSocket opened without subdomain');
+            logger.error('WebSocket opened without subdomain');
             ws.close();
             return;
         }
 
-        console.log(`[WS_OPEN] New WebSocket connection for: ${subdomain}, isControl: ${ws.data.isControl}`);
+        logger.debug(`[WS_OPEN] New WebSocket connection for: ${subdomain}, isControl: ${ws.data.isControl}`);
 
         // Handle control connection (from bunnel CLI)
         if (ws.data.isControl) {
@@ -322,7 +322,7 @@ class TunnelServer {
                 existingTunnel.controlSocket = ws;
                 existingTunnel.state = 'online';
                 existingTunnel.lastActive = Date.now();
-                console.log(`Tunnel ${subdomain} reconnected`);
+                logger.debug(`Tunnel ${subdomain} reconnected`);
             } else {
                 // New tunnel connection
                 const tunnelInfo: TunnelInfo = {
@@ -332,15 +332,15 @@ class TunnelServer {
                     lastActive: Date.now()
                 };
                 this.tunnels.set(subdomain, tunnelInfo);
-                console.log(`Control connection opened for subdomain: ${subdomain}`);
+                logger.debug(`Control connection opened for subdomain: ${subdomain}`);
             }
 
             try {
                 const message: ConnectedMessage = { type: 'connected', subdomain };
                 ws.send(JSON.stringify(message));
-                console.log(`[WS_OPEN] Sent connected message to control connection for: ${subdomain}`);
+                logger.debug(`[WS_OPEN] Sent connected message to control connection for: ${subdomain}`);
             } catch (err) {
-                console.error(`Error sending initial message to ${subdomain}:`, err);
+                logger.error(`Error sending initial message to ${subdomain}:`, err);
                 this.cleanupWebSocket(ws);
             }
             return;
@@ -349,13 +349,13 @@ class TunnelServer {
         // Handle client connection (to be tunneled)
         const tunnel = this.tunnels.get(subdomain);
         if (!tunnel) {
-            console.error(`No tunnel found for subdomain: ${subdomain}`);
+            logger.error(`No tunnel found for subdomain: ${subdomain}`);
             ws.close();
             return;
         }
 
         tunnel.clientSockets.add(ws);
-        console.log(`Client connection added for subdomain: ${subdomain}, total clients: ${tunnel.clientSockets.size}`);
+        logger.debug(`Client connection added for subdomain: ${subdomain}, total clients: ${tunnel.clientSockets.size}`);
     }
 
     private handleWebSocketMessage(ws: ServerWebSocket<TunnelData>, message: string | Buffer): void {
@@ -384,7 +384,7 @@ class TunnelServer {
                 tunnel.controlSocket.send(message);
             }
         } catch (err) {
-            console.error('Error handling WebSocket message:', err);
+            logger.error('Error handling WebSocket message:', err);
             this.cleanupWebSocket(ws);
         }
     }
@@ -400,15 +400,15 @@ class TunnelServer {
             // Control socket disconnected - start grace period
             tunnel.state = 'offline';
             tunnel.graceTimeout = setTimeout(() => {
-                console.log(`Grace period expired for tunnel: ${subdomain}`);
+                logger.debug(`Grace period expired for tunnel: ${subdomain}`);
                 this.cleanupTunnel(subdomain);
             }, this.options.reconnectGrace) as unknown as number;
-            console.log(`Control connection lost for ${subdomain}, grace period started`);
+            logger.debug(`Control connection lost for ${subdomain}, grace period started`);
         } else {
             // Client socket closed - just remove from set
             tunnel.clientSockets.delete(ws);
             tunnel.lastActive = Date.now(); // Update activity timestamp
-            console.log(`Client connection closed for subdomain: ${subdomain}, remaining clients: ${tunnel.clientSockets.size}`);
+            logger.debug(`Client connection closed for subdomain: ${subdomain}, remaining clients: ${tunnel.clientSockets.size}`);
         }
     }
 
@@ -448,7 +448,7 @@ class TunnelServer {
             this.pendingRequests.delete(id);
         }
 
-        console.log(`Tunnel cleaned up for subdomain: ${subdomain}`);
+        logger.debug(`Tunnel cleaned up for subdomain: ${subdomain}`);
     }
 
     private cleanupWebSocket(ws: ServerWebSocket<TunnelData>): void {
