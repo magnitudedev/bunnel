@@ -99,6 +99,9 @@ export class TunnelClient {
                 try {
                     const data = JSON.parse(event.data.toString());
 
+                    logger.debug("Received WS message:");
+                    logger.debug(data);
+
                     if (data.type === "connected") {
                         const message = data as ConnectedMessage;
                         const tunnelPort = new URL(this.tunnelServerUrl).port || "4444";
@@ -112,11 +115,30 @@ export class TunnelClient {
 
                     const request = data as TunnelRequest;
 
-                    // Forward request to local server
+                    // Log the request being sent to local server
+                    logger.debug(`Forwarding request to local server: ${this.localServerUrl}${request.path}`);
+                    logger.debug(`Request method: ${request.method}`);
+                    logger.debug(`Original request headers:`, request.headers);
+                    
+                    // Create a copy of the headers and replace the Host header with the local server host
+                    // const modifiedHeaders = { ...request.headers };
+                    // modifiedHeaders['host'] = new URL(this.localServerUrl).host; // Replace with localhost:3000
+                    
+                    // logger.debug(`Modified request headers:`, modifiedHeaders);
+                    // logger.debug(`Modified Host header to: ${modifiedHeaders['host']}`);
+                    
+                    // Forward request to local server with modified headers
                     const localResponse = await fetch(`${this.localServerUrl}${request.path}`, {
                         method: request.method,
                         headers: request.headers,
                         body: request.body
+                    });
+
+                    // Log the response from local server
+                    logger.debug(`Response from local server: Status ${localResponse.status}`);
+                    logger.debug(`Response headers from local server:`);
+                    localResponse.headers.forEach((value, key) => {
+                        logger.debug(`  ${key}: ${value}`);
                     });
 
                     // Convert headers to plain object
@@ -125,14 +147,54 @@ export class TunnelClient {
                         headers[key] = value;
                     });
 
+                    // Handle redirects by rewriting the Location header
+                    // if (localResponse.status >= 300 && localResponse.status < 400 && headers['location']) {
+                    //     try {
+                    //         const location = headers['location'];
+                    //         const tunnelHost = request.headers['host'];
+                            
+                    //         // Determine if we need to rewrite the URL
+                    //         if (location.startsWith('/')) {
+                    //             // Absolute path - rewrite with tunnel host
+                    //             // Preserve protocol (http/https) from the original request
+                    //             const protocol = tunnelHost.includes('localhost') ? 'http' : 'https';
+                    //             headers['location'] = `${protocol}://${tunnelHost}${location}`;
+                    //             logger.debug(`Rewrote redirect URL from ${location} to ${headers['location']}`);
+                    //         } else if (!location.includes('://')) {
+                    //             // Relative path without leading slash - combine with current path
+                    //             const currentPath = request.path.split('?')[0]; // Remove query string
+                    //             const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+                    //             // Preserve protocol (http/https) from the original request
+                    //             const protocol = tunnelHost.includes('localhost') ? 'http' : 'https';
+                    //             headers['location'] = `${protocol}://${tunnelHost}${basePath}${location}`;
+                    //             logger.debug(`Rewrote redirect URL from ${location} to ${headers['location']}`);
+                    //         }
+                    //         // If it's already an absolute URL with protocol, leave it unchanged
+                    //     } catch (error) {
+                    //         logger.warn('Error rewriting redirect URL:', error);
+                    //         // If URL rewriting fails, continue with the original URL
+                    //     }
+                    // }
+
+                    // Get response body
+                    const responseBody = await localResponse.text();
+                    
                     // Send response back through tunnel
                     const tunnelResponse: TunnelResponse = {
                         id: request.id,
                         status: localResponse.status,
                         headers,
-                        body: await localResponse.text()
+                        body: responseBody
                     };
 
+                    // Log the final response being sent back through tunnel
+                    logger.debug(`Sending response back through tunnel: Status ${tunnelResponse.status}`);
+                    logger.debug(`Response headers being sent back:`);
+                    Object.entries(tunnelResponse.headers).forEach(([key, value]) => {
+                        logger.debug(`  ${key}: ${value}`);
+                    });
+                    logger.debug(`Response body length: ${responseBody.length} characters`);
+                    
                     this.ws?.send(JSON.stringify(tunnelResponse));
                 } catch (error) {
                     logger.warn("Error handling tunnel message:", error);

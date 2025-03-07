@@ -245,14 +245,20 @@ class TunnelServer {
 
             // Handle regular HTTP requests
             if (parts.length === 2 && parts[1] === 'localhost') {
+                logger.debug('[HTTP] Forwarding HTTP request')
                 const subdomain = parts[0];
                 const tunnel = this.tunnels.get(subdomain);
+                
                 if (!tunnel) {
+                    logger.debug(`[HTTP] No tunnel found for ${subdomain}:`);
                     return new Response('Tunnel not found', { status: 404 });
+                } else {
+                    logger.debug(`[HTTP] Tunnel found for ${subdomain}:`, tunnel);
                 }
 
                 // Create unique request ID
                 const requestId = Math.random().toString(36).substring(2);
+                logger.debug(`[HTTP] Request ID generated: ${requestId}`);
 
                 try {
                     // Prepare request data for tunnel
@@ -263,6 +269,10 @@ class TunnelServer {
                         headers: this.headersToObject(req.headers),
                         body: req.body ? await req.text() : null
                     };
+
+                    logger.debug('[HTTP] Sending request through tunnel socket:', tunnelRequest);
+                    logger.debug(tunnelRequest);
+                    logger.debug(tunnelRequest.body);
 
                     // Send request through control socket
                     tunnel.controlSocket.send(JSON.stringify(tunnelRequest));
