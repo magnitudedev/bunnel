@@ -229,7 +229,7 @@ export class TunnelClient {
             };
 
             this.ws.onerror = (event) => {
-                logger.error("WebSocket error:", event);
+                logger.warn("WebSocket error:", event);
                 const error = new Error(`WebSocket connection error: ${event}`);
                 reject(error);
             };
