@@ -1,5 +1,6 @@
 import type { TunnelRequest, TunnelResponse, ConnectedMessage } from './types';
 import logger from './logger';
+import WebSocket from 'ws';
 
 export interface TunnelClientOptions {
     /**
@@ -91,13 +92,13 @@ export class TunnelClient {
         return new Promise((resolve, reject) => {
             this.ws = new WebSocket(this.tunnelServerUrl);
 
-            this.ws.onopen = () => {
+            this.ws.on('open', () => {
                 logger.debug("Connected to tunnel server");
-            };
+            });
 
-            this.ws.onmessage = async (event) => {
+            this.ws.on('message', async (rawData) => {
                 try {
-                    const data = JSON.parse(event.data.toString());
+                    const data = JSON.parse(rawData.toString());
 
                     logger.debug("Received WS message:");
                     logger.debug(data);
@@ -207,7 +208,7 @@ export class TunnelClient {
 
                     // For established connections, try to handle the error
                     try {
-                        const reqData = JSON.parse(event.data.toString()) as TunnelRequest;
+                        const reqData = JSON.parse(rawData.toString()) as TunnelRequest;
                         const errorResponse: TunnelResponse = {
                             id: reqData.id,
                             status: 502,
@@ -220,19 +221,18 @@ export class TunnelClient {
                         logger.warn("Failed to send tunnel error response");
                     }
                 }
-            };
+            });
 
-            this.ws.onclose = () => {
+            this.ws.on('close', () => {
                 logger.debug("Disconnected from tunnel server");
                 this.ws = null;
                 this.options.onClosed?.();
-            };
+            });
 
-            this.ws.onerror = (event) => {
-                logger.warn("WebSocket error:", event);
-                const error = new Error(`WebSocket connection error: ${event}`);
-                reject(error);
-            };
+            this.ws.on('error', (error) => {
+                logger.warn("WebSocket error:", error);
+                reject(new Error(`WebSocket connection error: ${error}`));
+            });
         });
     }
 

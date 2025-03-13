@@ -16,7 +16,8 @@
   "scripts": {
     "build": "bun build src/server/server.ts src/cli/server.ts --outdir dist --target bun",
     "start": "bunnel-server",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "dev": "bun ./src/cli/server.ts"
   },
   "keywords": [
     "tunnel",
