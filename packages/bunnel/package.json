@@ -1,6 +1,6 @@
 {
   "name": "bunnel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Websocket reverse tunnel",
   "type": "module",
   "main": "dist/client/index.js",
