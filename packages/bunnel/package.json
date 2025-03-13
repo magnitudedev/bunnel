@@ -1,6 +1,6 @@
 {
   "name": "bunnel",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Websocket reverse tunnel",
   "type": "module",
   "main": "dist/client/index.js",
@@ -35,7 +35,8 @@
   },
   "dependencies": {
     "commander": "^11.1.0",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "ws": "^8.18.1"
   },
   "devDependencies": {
     "@types/commander": "^2.12.2",
